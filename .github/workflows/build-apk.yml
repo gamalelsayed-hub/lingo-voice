@@ -32,7 +32,12 @@ jobs:
       # newer APK exists.
       - run: |
           set -o pipefail
-          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} 2>&1 | tee build.log
+          # Most phones are 64-bit ARM; publish that as the main APK so the
+          # download is about a third of the size of a universal APK.
+          cd build/app/outputs/flutter-apk
+          cp app-arm64-v8a-release.apk app-release.apk
+          cp app-armeabi-v7a-release.apk app-release-32bit.apk
 
       # Build logs are published as a release asset when the build fails, so
       # they can be read without access to the Actions log storage.
@@ -53,7 +58,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: lingo-voice-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release*.apk
 
       # A fixed "latest" release gives a direct download link for the phone.
       - uses: softprops/action-gh-release@v2
@@ -64,4 +69,5 @@ jobs:
           prerelease: true
           files: |
             build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release-32bit.apk
             build/app/outputs/flutter-apk/version.json

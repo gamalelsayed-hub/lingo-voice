@@ -24,7 +24,8 @@ class UpdateService {
   /// Returns the newer build, or null when the app is up to date.
   Future<AppUpdate?> check() async {
     final info = await PackageInfo.fromPlatform();
-    final current = int.tryParse(info.buildNumber) ?? 0;
+    // Split-per-ABI builds add 1000 * ABI to the build number.
+    final current = (int.tryParse(info.buildNumber) ?? 0) % 1000;
     final response = await http
         .get(Uri.parse('$_releaseBase/version.json'))
         .timeout(const Duration(seconds: 15));
