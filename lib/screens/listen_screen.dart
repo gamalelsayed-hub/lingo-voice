@@ -97,6 +97,15 @@ class _ListenScreenState extends State<ListenScreen> {
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
                 ),
+              if (s.notice != null)
+                Card(
+                  color: theme.colorScheme.tertiaryContainer,
+                  margin: const EdgeInsets.only(top: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(s.notice!),
+                  ),
+                ),
               if (s.listening && !s.instantMode)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),

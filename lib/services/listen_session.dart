@@ -45,6 +45,9 @@ class ListenSession extends ChangeNotifier {
   bool listening = false;
   bool speaking = false;
   String? error;
+
+  /// A hint for the learner, e.g. why nothing was spoken.
+  String? notice;
   Timer? _timer;
 
   /// New flashcards created during this session.
@@ -113,9 +116,21 @@ class ListenSession extends ChangeNotifier {
   }
 
   /// Builds a summary of what was said since the last one, saves recurring
-  /// words as flashcards and, if [speak], reads it aloud.
+  /// words as flashcards and, if [speak], reads it aloud. With nothing new,
+  /// the last summary is read again.
   Future<void> summarize({bool speak = true}) async {
-    if (_pending.isEmpty) return;
+    if (_pending.isEmpty) {
+      if (!speak) return;
+      if (lastSummary == null) {
+        notice =
+            'ما سمعت جمل كاملة بعد. تكلم جملة أو جملتين بالعربي، '
+            'وانتظر حتى تظهر تحت في "ما قلته"، ثم اضغط الملخص.';
+        notifyListeners();
+        return;
+      }
+      await _speakSummary(lastSummary!);
+      return;
+    }
     final batch = List.of(_pending);
     _pending.clear();
 
@@ -128,30 +143,42 @@ class ListenSession extends ChangeNotifier {
     lastSummary = SessionSummary(key, words);
     notifyListeners();
 
-    if (!speak) return;
-    await _say(() async {
-      for (final s in key) {
-        for (final part in splitForLevel(s.english, level.maxWords)) {
-          await _voice.english(part, rate: level.speechRate);
-        }
-      }
-      if (words.isEmpty) {
-        return;
-      }
-      await _voice.english('New words.', rate: level.speechRate);
-      for (final w in words) {
-        await _voice.english(w.word, rate: level.speechRate);
-        await _voice.arabic(w.meaning);
-      }
-    });
+    if (speak) await _speakSummary(lastSummary!);
   }
 
+  Future<void> _speakSummary(SessionSummary summary) => _say(() async {
+    for (final s in summary.sentences) {
+      for (final part in splitForLevel(s.english, level.maxWords)) {
+        if (!await _voice.english(part, rate: level.speechRate)) return;
+      }
+    }
+    if (summary.words.isEmpty) return;
+    await _voice.english('New words.', rate: level.speechRate);
+    for (final w in summary.words) {
+      await _voice.english(w.word, rate: level.speechRate);
+      await _voice.arabic(w.meaning);
+    }
+  });
+
   Future<void> _say(Future<void> Function() talk) async {
+    notice = null;
+    _voice.lastError = null;
     speaking = true;
     notifyListeners();
-    if (listening) await _speech.pause();
+    if (listening) {
+      await _speech.pause();
+      // Give the recognizer a moment to release the audio.
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
     try {
       await talk();
+      final voiceError = _voice.lastError;
+      if (voiceError != null) {
+        notice = _voice.hasEnglish
+            ? 'الجوال ما قدر ينطق ($voiceError). تأكد أن صوت الوسائط مرتفع.'
+            : 'الجوال ما فيه صوت إنجليزي. ثبّت "Speech Services by Google" '
+                  'من المتجر، وحمّل الصوت الإنجليزي من إعدادات تحويل النص إلى كلام.';
+      }
     } finally {
       speaking = false;
       notifyListeners();

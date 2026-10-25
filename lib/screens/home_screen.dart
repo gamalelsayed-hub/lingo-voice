@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../data/levels.dart';
 import '../services/store.dart';
 import '../services/translation_service.dart';
+import '../services/voice_service.dart';
 import 'listen_screen.dart';
 import 'placement_screen.dart';
 import 'review_screen.dart';
@@ -188,6 +189,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _testVoice(BuildContext context) async {
+    final voice = VoiceService.instance;
+    final messenger = ScaffoldMessenger.of(context);
+    voice.lastError = null;
+    final ok = await voice.english('Hello! This is your English voice.');
+    final message = ok && voice.lastError == null
+        ? (voice.hasEnglish
+              ? 'لو سمعت الجملة، الصوت شغال.'
+              : 'الجوال ما فيه صوت إنجليزي مثبت.')
+        : 'الجوال ما قدر ينطق: ${voice.lastError}';
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _showSettings(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -229,6 +243,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           setSheet(() => _store.summaryMinutes = m),
                     ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.record_voice_over),
+                label: const Text('جرّب صوت التطبيق'),
+                onPressed: () => _testVoice(context),
               ),
             ],
           ),
