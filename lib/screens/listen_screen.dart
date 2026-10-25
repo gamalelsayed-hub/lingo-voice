@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/levels.dart';
 import '../services/listen_session.dart';
@@ -133,12 +134,10 @@ class _ListenScreenState extends State<ListenScreen> {
                 ),
               for (final sentence in s.history.reversed)
                 Card(
-                  child: ListTile(
-                    title: Text(sentence.arabic),
-                    subtitle: Text(
-                      sentence.english,
-                      textDirection: TextDirection.ltr,
-                    ),
+                  child: _SentenceTile(
+                    english: sentence.english,
+                    arabic: sentence.arabic,
+                    session: s,
                   ),
                 ),
             ],
@@ -172,10 +171,7 @@ class _SummaryCard extends StatelessWidget {
             Text('آخر ملخص', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final s in summary.sentences)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('• ${s.english}', textDirection: TextDirection.ltr),
-              ),
+              _SentenceTile(english: s.english, session: session),
             if (summary.words.isNotEmpty) ...[
               const Divider(),
               Text('كلمات جديدة', style: theme.textTheme.titleSmall),
@@ -201,6 +197,51 @@ class _SummaryCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// An English sentence with buttons to hear it again and to copy it.
+class _SentenceTile extends StatelessWidget {
+  const _SentenceTile({
+    required this.english,
+    required this.session,
+    this.arabic,
+  });
+
+  final String english;
+  final String? arabic;
+  final ListenSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+      title: arabic == null
+          ? Text(english, textDirection: TextDirection.ltr)
+          : Text(arabic!),
+      subtitle: arabic == null
+          ? null
+          : Text(english, textDirection: TextDirection.ltr),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.volume_up),
+            tooltip: 'استمع',
+            onPressed: () => session.replay(english),
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy),
+            tooltip: 'نسخ',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: english));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('تم النسخ')));
+            },
+          ),
+        ],
       ),
     );
   }

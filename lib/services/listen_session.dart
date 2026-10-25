@@ -305,6 +305,12 @@ class ListenSession extends ChangeNotifier {
     _store.cards = cards;
   }
 
+  /// Says [english] again, pausing the microphone so it is not heard.
+  Future<void> replay(String english) {
+    if (speaking) return Future.value();
+    return _say(() => _voice.english(english, rate: level.speechRate));
+  }
+
   /// Adds a word from the summary straight to the flashcards.
   void addCard(NewWord word, String example) {
     final cards = _store.cards;
