@@ -30,7 +30,19 @@ jobs:
       - run: flutter test
       # The run number is the build number, so the app can tell that a
       # newer APK exists.
-      - run: flutter build apk --release --build-number=${{ github.run_number }}
+      - run: |
+          set -o pipefail
+          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+
+      # Build logs are published as a release asset when the build fails, so
+      # they can be read without access to the Actions log storage.
+      - if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-logs
+          name: CI logs
+          prerelease: true
+          files: build.log
 
       - name: Write version.json
         run: |
