@@ -28,7 +28,15 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build apk --release
+      # The run number is the build number, so the app can tell that a
+      # newer APK exists.
+      - run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Write version.json
+        run: |
+          sha=$(sha256sum build/app/outputs/flutter-apk/app-release.apk | cut -d' ' -f1)
+          echo "{\"build\": ${{ github.run_number }}, \"sha256\": \"$sha\"}" > build/app/outputs/flutter-apk/version.json
+          cat build/app/outputs/flutter-apk/version.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -42,4 +50,6 @@ jobs:
           name: أحدث نسخة
           body: "نسخة مبنية تلقائياً من آخر تعديل (${{ github.sha }})."
           prerelease: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/version.json

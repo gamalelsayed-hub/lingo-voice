@@ -6,3 +6,4 @@
 -keep class com.google.firebase.** { *; }
 -dontwarn com.google.mlkit.**
 -dontwarn com.google.android.gms.**
+-keep class sk.fourq.otaupdate.** { *; }

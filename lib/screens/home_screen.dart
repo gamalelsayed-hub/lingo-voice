@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ota_update/ota_update.dart';
 
 import '../data/levels.dart';
 import '../services/store.dart';
 import '../services/translation_service.dart';
+import '../services/update_service.dart';
 import '../services/voice_service.dart';
 import 'listen_screen.dart';
 import 'placement_screen.dart';
@@ -20,11 +22,92 @@ class _HomeScreenState extends State<HomeScreen> {
   final _store = Store.instance;
   bool _modelsReady = false;
   bool _downloading = false;
+  AppUpdate? _update;
+  bool _checkingUpdate = false;
+
+  /// Download progress in percent while an update is downloading.
+  int? _updateProgress;
 
   @override
   void initState() {
     super.initState();
     _checkModels();
+    _checkForUpdate(quiet: true);
+  }
+
+  Future<void> _checkForUpdate({bool quiet = false}) async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    String? message;
+    try {
+      final update = await UpdateService.instance.check();
+      if (mounted) setState(() => _update = update);
+      if (update == null) message = 'عندك آخر نسخة.';
+    } catch (e) {
+      message = 'ما قدرنا نفحص التحديثات: $e';
+    }
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+    if (!quiet && message != null) _snack(message);
+  }
+
+  void _installUpdate() {
+    final update = _update;
+    if (update == null) return;
+    setState(() => _updateProgress = 0);
+    UpdateService.instance
+        .install(update)
+        .listen(
+          (event) {
+            if (!mounted) return;
+            switch (event.status) {
+              case OtaStatus.DOWNLOADING:
+                setState(
+                  () => _updateProgress = int.tryParse(event.value ?? ''),
+                );
+              case OtaStatus.INSTALLING:
+              case OtaStatus.INSTALLATION_DONE:
+                setState(() => _updateProgress = null);
+              default:
+                setState(() => _updateProgress = null);
+                _snack(
+                  'فشل التحديث (${event.status.name}): ${event.value ?? ''}',
+                );
+            }
+          },
+          onError: (Object e) {
+            if (!mounted) return;
+            setState(() => _updateProgress = null);
+            _snack('فشل التحديث: $e');
+          },
+        );
+  }
+
+  void _snack(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _chooseLevel() async {
+    final chosen = await showDialog<CefrLevel>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('اختر مستواك'),
+        children: [
+          for (final level in CefrLevel.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(level),
+              child: Text(
+                '${level.code}  ${level.arabicName}',
+                style: TextStyle(
+                  fontWeight: level == _store.level ? FontWeight.bold : null,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null) return;
+    setState(() => _store.level = chosen);
   }
 
   Future<void> _checkModels() async {
@@ -100,6 +183,21 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('تعلّم الإنجليزية بصوتك'),
         actions: [
           IconButton(
+            icon: _checkingUpdate
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Badge(
+                    isLabelVisible: _update != null,
+                    child: const Icon(Icons.system_update),
+                  ),
+            tooltip: 'فحص التحديثات',
+            onPressed: _update != null
+                ? _installUpdate
+                : () => _checkForUpdate(),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'الإعدادات',
             onPressed: () => _showSettings(context),
@@ -109,22 +207,56 @@ class _HomeScreenState extends State<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_update != null)
+            Card(
+              color: theme.colorScheme.primaryContainer,
+              child: ListTile(
+                leading: const Icon(Icons.system_update, size: 32),
+                title: const Text('في نسخة جديدة من التطبيق'),
+                subtitle: _updateProgress != null
+                    ? LinearProgressIndicator(value: _updateProgress! / 100)
+                    : const Text('اضغط تحديث، وبعدها وافق على التثبيت.'),
+                trailing: FilledButton(
+                  onPressed: _updateProgress != null ? null : _installUpdate,
+                  child: const Text('تحديث'),
+                ),
+              ),
+            ),
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.school, size: 36),
-              title: Text(
-                level == null
-                    ? 'لم تحدد مستواك بعد'
-                    : 'مستواك: ${level.code} (${level.arabicName})',
-              ),
-              subtitle: Text(
-                level == null
-                    ? 'ابدأ باختبار قصير (5 دقائق تقريباً)'
-                    : 'تقدر تعيد الاختبار في أي وقت',
-              ),
-              trailing: FilledButton.tonal(
-                onPressed: () => _open(const PlacementScreen()),
-                child: Text(level == null ? 'ابدأ الاختبار' : 'أعد الاختبار'),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.school, size: 36),
+                    title: Text(
+                      level == null
+                          ? 'لم تحدد مستواك بعد'
+                          : 'مستواك: ${level.code} (${level.arabicName})',
+                    ),
+                    subtitle: Text(
+                      level == null
+                          ? 'سوِّ اختبار قصير (5 دقائق تقريباً) أو اختر مستواك بنفسك'
+                          : 'تقدر تعيد الاختبار أو تغيّر المستوى في أي وقت',
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FilledButton.tonal(
+                        onPressed: () => _open(const PlacementScreen()),
+                        child: Text(
+                          level == null ? 'ابدأ الاختبار' : 'أعد الاختبار',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton(
+                        onPressed: _chooseLevel,
+                        child: const Text('اختر مستواك بنفسك'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
