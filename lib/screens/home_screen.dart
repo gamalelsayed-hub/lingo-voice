@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/levels.dart';
 import '../services/store.dart';
@@ -32,26 +33,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _downloadModels() async {
     setState(() => _downloading = true);
-    bool ok;
+    Object? error;
     try {
-      ok = await TranslationService.instance.downloadModels();
-    } catch (_) {
-      ok = false;
+      await TranslationService.instance.downloadModels();
+    } catch (e) {
+      error = e;
     }
     if (!mounted) return;
     setState(() {
       _downloading = false;
-      _modelsReady = ok;
+      _modelsReady = error == null;
     });
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'فشل التحميل. تأكد من اتصالك بالإنترنت وحاول مرة ثانية.',
-          ),
+    if (error != null) _showDownloadError(error);
+  }
+
+  void _showDownloadError(Object error) {
+    final details = error is PlatformException
+        ? '${error.code}: ${error.message}'
+        : error.toString();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ما قدرنا نحمّل الترجمة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'تأكد أن خدمات Google Play محدّثة وأن التطبيق غير مقيّد في توفير البيانات، ثم حاول مرة ثانية. '
+              'لو تكرر الخطأ، أرسل لنا النص التالي:',
+            ),
+            const SizedBox(height: 8),
+            SelectableText(details, textDirection: TextDirection.ltr),
+          ],
         ),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(ClipboardData(text: details)),
+            child: const Text('نسخ الخطأ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('حسناً'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _open(Widget screen) async {

@@ -29,6 +29,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // A fixed debug key, so every APK built by GitHub Actions can be
+        // installed over the previous one. Replace with a private key before
+        // publishing to the Play Store.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

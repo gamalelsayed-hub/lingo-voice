@@ -21,16 +21,28 @@ class TranslationService {
       await _models.isModelDownloaded(TranslateLanguage.arabic.bcpCode) &&
       await _models.isModelDownloaded(TranslateLanguage.english.bcpCode);
 
-  Future<bool> downloadModels({bool wifiOnly = false}) async {
-    final ar = await _models.downloadModel(
-      TranslateLanguage.arabic.bcpCode,
-      isWifiRequired: wifiOnly,
-    );
-    final en = await _models.downloadModel(
-      TranslateLanguage.english.bcpCode,
-      isWifiRequired: wifiOnly,
-    );
-    return ar && en;
+  /// Downloads the Arabic and English models. Throws with the real reason
+  /// when the download fails.
+  Future<void> downloadModels() async {
+    for (final language in [
+      TranslateLanguage.arabic,
+      TranslateLanguage.english,
+    ]) {
+      final code = language.bcpCode;
+      if (await _models.isModelDownloaded(code)) continue;
+      try {
+        await _models.downloadModel(code, isWifiRequired: false);
+      } catch (_) {
+        // Fall back to the translator's own download, which uses ML Kit's
+        // default conditions.
+      }
+    }
+    if (await modelsReady()) return;
+    await _toEnglish.translateText('مرحبا');
+    await _toArabic.translateText('hello');
+    if (!await modelsReady()) {
+      throw Exception('models still missing after download');
+    }
   }
 
   Future<String> toEnglish(String arabic) => _toEnglish.translateText(arabic);
