@@ -38,9 +38,10 @@ class Store {
   String get dialect => _prefs.getString('dialect') ?? 'ar_EG';
   set dialect(String value) => _prefs.setString('dialect', value);
 
-  /// Minutes between smart summaries while listening; 0 means only at the end.
-  int get summaryMinutes => _prefs.getInt('summaryMinutes') ?? 5;
-  set summaryMinutes(int value) => _prefs.setInt('summaryMinutes', value);
+  /// When the smart summary is read: -1 after the learner goes quiet,
+  /// 0 only at the end, otherwise every that many minutes.
+  int get summaryMinutes => _prefs.getInt('summaryEvery') ?? -1;
+  set summaryMinutes(int value) => _prefs.setInt('summaryEvery', value);
 
   bool get instantMode => _prefs.getBool('instantMode') ?? false;
   set instantMode(bool value) => _prefs.setBool('instantMode', value);

@@ -4,21 +4,24 @@ import '../data/levels.dart';
 import '../services/listen_session.dart';
 
 class ListenScreen extends StatefulWidget {
-  const ListenScreen({super.key, required this.level});
+  const ListenScreen({super.key, required this.level, this.autoStart = false});
 
   final CefrLevel level;
+
+  /// Starts listening as soon as the screen opens.
+  final bool autoStart;
 
   @override
   State<ListenScreen> createState() => _ListenScreenState();
 }
 
 class _ListenScreenState extends State<ListenScreen> {
-  late final ListenSession _session = ListenSession(widget.level);
+  late final ListenSession _session = ListenSession.forLevel(widget.level);
 
   @override
-  void dispose() {
-    _session.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    if (widget.autoStart && !_session.listening) _session.start();
   }
 
   @override
@@ -75,7 +78,8 @@ class _ListenScreenState extends State<ListenScreen> {
                 s.speaking
                     ? 'أتكلم الآن...'
                     : s.listening
-                    ? 'أسمعك... تكلم بالعربي براحتك'
+                    ? 'أسمعك... تكلم بالعربي براحتك.\n'
+                          'تقدر تطلع من التطبيق أو تقفل الشاشة، وبيكمل يسمعك.'
                     : 'اضغط الزر وابدأ الكلام',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium,

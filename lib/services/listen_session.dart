@@ -6,6 +6,7 @@ import '../data/levels.dart';
 import '../logic/srs.dart';
 import '../logic/summary.dart';
 import '../logic/text_utils.dart';
+import 'background_service.dart';
 import 'speech_service.dart';
 import 'store.dart';
 import 'translation_service.dart';
@@ -28,9 +29,37 @@ class SessionSummary {
 
 /// Runs one listening session: hears the learner's Arabic, translates it,
 /// and either says each sentence in English right away (instant mode) or
-/// reads back a smart summary every few minutes and at the end.
+/// reads back a smart summary when the learner goes quiet, every few
+/// minutes, or at the end. It keeps running in the background with a
+/// notification, so it outlives the listening screen.
 class ListenSession extends ChangeNotifier {
-  ListenSession(this.level);
+  ListenSession._(this.level);
+
+  static bool _buttonsWired = false;
+
+  /// The running session, if any.
+  static ListenSession? _current;
+
+  /// Returns the running session, or a new one for [level].
+  static ListenSession forLevel(CefrLevel level) {
+    if (!_buttonsWired) {
+      _buttonsWired = true;
+      BackgroundService.onButton((id) {
+        final session = _current;
+        if (session == null) return;
+        if (id == BackgroundService.stopButton) session.stop();
+        if (id == BackgroundService.summaryButton) session.summarize();
+      });
+    }
+    final current = _current;
+    if (current != null && current.listening) return current;
+    return _current = ListenSession._(level);
+  }
+
+  static bool get isRunning => _current?.listening ?? false;
+
+  /// How long the learner must be quiet before the summary is read.
+  static const silenceDelay = Duration(seconds: 6);
 
   final CefrLevel level;
   final _store = Store.instance;
@@ -49,6 +78,7 @@ class ListenSession extends ChangeNotifier {
   /// A hint for the learner, e.g. why nothing was spoken.
   String? notice;
   Timer? _timer;
+  Timer? _silenceTimer;
 
   /// New flashcards created during this session.
   int newCards = 0;
@@ -68,6 +98,11 @@ class ListenSession extends ChangeNotifier {
       return;
     }
     await _voice.init();
+    try {
+      await BackgroundService.start();
+    } catch (e) {
+      notice = 'ما قدرنا نشغّل الاستماع في الخلفية ($e). خلّ التطبيق مفتوح.';
+    }
     listening = true;
     notifyListeners();
     await _speech.startContinuous(
@@ -75,6 +110,7 @@ class ListenSession extends ChangeNotifier {
       onSentence: _onSentence,
       onPartial: (p) {
         partial = p;
+        _silenceTimer?.cancel();
         notifyListeners();
       },
     );
@@ -88,15 +124,45 @@ class ListenSession extends ChangeNotifier {
 
   /// Stops listening and, in summary mode, reads the final summary.
   Future<void> stop() async {
+    if (!listening) return;
     _timer?.cancel();
+    _silenceTimer?.cancel();
     listening = false;
     partial = '';
     notifyListeners();
     await _speech.stop();
     await summarize(speak: !instantMode);
+    await BackgroundService.stop();
+  }
+
+  /// In summary mode with "after I stop talking", reads the summary once
+  /// the learner has been quiet for [silenceDelay].
+  void _restartSilenceTimer() {
+    _silenceTimer?.cancel();
+    if (instantMode || _store.summaryMinutes != -1) return;
+    _silenceTimer = Timer(silenceDelay, () {
+      if (listening && !speaking && partial.isEmpty) summarize();
+    });
+  }
+
+  int _translating = 0;
+
+  Future<void> _waitForTranslations() async {
+    for (var i = 0; i < 50 && _translating > 0; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   Future<void> _onSentence(String arabic) async {
+    _translating++;
+    try {
+      await _addSentence(arabic);
+    } finally {
+      _translating--;
+    }
+  }
+
+  Future<void> _addSentence(String arabic) async {
     partial = '';
     String english;
     try {
@@ -110,6 +176,8 @@ class ListenSession extends ChangeNotifier {
     history.add(sentence);
     _pending.add(sentence);
     notifyListeners();
+    BackgroundService.update(english);
+    _restartSilenceTimer();
     if (instantMode) {
       await _say(() => _voice.english(english, rate: level.speechRate));
     }
@@ -119,6 +187,15 @@ class ListenSession extends ChangeNotifier {
   /// words as flashcards and, if [speak], reads it aloud. With nothing new,
   /// the last summary is read again.
   Future<void> summarize({bool speak = true}) async {
+    if (speaking) return;
+    _silenceTimer?.cancel();
+    if (listening && partial.isNotEmpty) {
+      // Count what is being said right now, even if the sentence is not
+      // finished.
+      _speech.flush();
+      partial = '';
+      await _waitForTranslations();
+    }
     if (_pending.isEmpty) {
       if (!speak) return;
       if (lastSummary == null) {
@@ -238,7 +315,11 @@ class ListenSession extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
-    if (listening) _speech.stop();
+    _silenceTimer?.cancel();
+    if (listening) {
+      _speech.stop();
+      BackgroundService.stop();
+    }
     _voice.stop();
     super.dispose();
   }

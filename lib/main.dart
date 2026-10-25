@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'screens/home_screen.dart';
+import 'services/background_service.dart';
 import 'services/store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Store.load();
+  BackgroundService.init();
   runApp(const LingoVoiceApp());
 }
 
@@ -31,7 +34,7 @@ class LingoVoiceApp extends StatelessWidget {
         brightness: Brightness.dark,
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const WithForegroundTask(child: HomeScreen()),
     );
   }
 }

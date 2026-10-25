@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:ota_update/ota_update.dart';
 
 import '../data/levels.dart';
+import '../services/listen_session.dart';
 import '../services/store.dart';
 import '../services/translation_service.dart';
 import '../services/update_service.dart';
@@ -282,13 +283,13 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 140,
             child: FilledButton.icon(
               icon: const Icon(Icons.mic, size: 48),
-              label: const Text(
-                'ابدأ الاستماع',
-                style: TextStyle(fontSize: 22),
+              label: Text(
+                ListenSession.isRunning ? 'يسمعك الآن (افتح)' : 'ابدأ الاستماع',
+                style: const TextStyle(fontSize: 22),
               ),
               onPressed: level == null || !_modelsReady
                   ? null
-                  : () => _open(ListenScreen(level: level)),
+                  : () => _open(ListenScreen(level: level, autoStart: true)),
             ),
           ),
           if (level == null || !_modelsReady)
@@ -367,9 +368,13 @@ class _HomeScreenState extends State<HomeScreen> {
               Wrap(
                 spacing: 8,
                 children: [
-                  for (final m in const [0, 5, 10])
+                  for (final m in const [-1, 5, 0])
                     ChoiceChip(
-                      label: Text(m == 0 ? 'في النهاية فقط' : 'كل $m دقائق'),
+                      label: Text(switch (m) {
+                        -1 => 'بعد ما أسكت',
+                        0 => 'في النهاية فقط',
+                        _ => 'كل $m دقائق',
+                      }),
                       selected: _store.summaryMinutes == m,
                       onSelected: (_) =>
                           setSheet(() => _store.summaryMinutes = m),

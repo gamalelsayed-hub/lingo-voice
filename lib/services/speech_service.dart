@@ -20,6 +20,10 @@ class SpeechService {
   Completer<String>? _single;
   String _lastWords = '';
 
+  /// Words heard but not yet delivered as a sentence. Android often ends a
+  /// session without a final result, so these are delivered when it stops.
+  String _undelivered = '';
+
   bool get isListening => _stt.isListening;
 
   Future<bool> init() async {
@@ -38,6 +42,8 @@ class SpeechService {
     void Function(String partial)? onPartial,
   }) async {
     _locale = locale;
+    _single = null;
+    _undelivered = '';
     _onSentence = onSentence;
     _onPartial = onPartial;
     _continuous = true;
@@ -50,6 +56,14 @@ class SpeechService {
   Future<void> pause() async {
     _paused = true;
     await _stt.stop();
+    flush();
+  }
+
+  /// Delivers whatever was heard so far as a sentence, even if incomplete.
+  void flush() {
+    final words = _undelivered.trim();
+    _undelivered = '';
+    if (words.isNotEmpty) _onSentence?.call(words);
   }
 
   Future<void> resume() async {
@@ -61,12 +75,15 @@ class SpeechService {
     _continuous = false;
     _paused = false;
     await _stt.stop();
+    flush();
   }
 
   /// Listens for one utterance (used by the placement test).
   Future<String> listenOnce(String locale) async {
     _continuous = false;
     _locale = locale;
+    _onSentence = null;
+    _onPartial = null;
     _single = Completer<String>();
     _lastWords = '';
     await _listen();
@@ -88,9 +105,11 @@ class SpeechService {
   void _handleResult(SpeechRecognitionResult r) {
     _lastWords = r.recognizedWords;
     if (!r.finalResult) {
+      _undelivered = r.recognizedWords;
       _onPartial?.call(r.recognizedWords);
       return;
     }
+    _undelivered = '';
     final single = _single;
     if (single != null && !single.isCompleted) {
       single.complete(r.recognizedWords);
@@ -109,6 +128,7 @@ class SpeechService {
       single.complete(_lastWords);
       return;
     }
+    flush();
     if (_continuous && !_paused) {
       Future.delayed(const Duration(milliseconds: 300), () {
         if (_continuous && !_paused && !_stt.isListening) _listen();
