@@ -2,6 +2,7 @@ import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
 import '../data/levels.dart';
 import 'claude_translator.dart';
+import 'google_web_translator.dart';
 import 'store.dart';
 
 /// Translates between Arabic and English on the phone, with Google ML Kit.
@@ -49,29 +50,44 @@ class TranslationService {
     }
   }
 
-  /// Whether the last translation came from Claude, for the UI.
-  bool lastWasClaude = false;
+  final _web = GoogleWebTranslator();
 
-  /// Translates with Claude when an API key is set, falling back to the
-  /// on-device model when there is no key, no internet, or an API error.
+  /// Which translator produced the last English sentence.
+  String lastSource = 'device';
+
+  /// Translates with Claude when an API key is set, otherwise with free
+  /// online Google Translate, and falls back to the on-device model when
+  /// there is no internet or the online service fails.
   Future<String> toEnglish(String arabic, CefrLevel level) async {
     final key = Store.instance.claudeApiKey;
     if (key.isNotEmpty) {
       try {
         final english = await ClaudeTranslator(key).toEnglish(arabic, level);
-        lastWasClaude = true;
+        lastSource = 'claude';
         lastClaudeError = null;
         return english;
       } catch (e) {
         lastClaudeError = '$e';
       }
     }
-    lastWasClaude = false;
-    return _toEnglish.translateText(arabic);
+    try {
+      final english = await _web.translate(arabic, from: 'ar', to: 'en');
+      lastSource = 'google';
+      return english;
+    } catch (_) {
+      lastSource = 'device';
+      return _toEnglish.translateText(arabic);
+    }
   }
 
   /// Why the last Claude translation failed, if it did.
   String? lastClaudeError;
 
-  Future<String> toArabic(String english) => _toArabic.translateText(english);
+  Future<String> toArabic(String english) async {
+    try {
+      return await _web.translate(english, from: 'en', to: 'ar');
+    } catch (_) {
+      return _toArabic.translateText(english);
+    }
+  }
 }

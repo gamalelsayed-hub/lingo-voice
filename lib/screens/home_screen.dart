@@ -111,8 +111,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _store.level = chosen);
   }
 
-  bool get _canTranslate => _modelsReady || _store.claudeApiKey.isNotEmpty;
-
   Future<void> _checkModels() async {
     final ready = await TranslationService.instance.modelsReady();
     if (mounted) setState(() => _modelsReady = ready);
@@ -268,9 +266,9 @@ class _HomeScreenState extends State<HomeScreen> {
               color: theme.colorScheme.tertiaryContainer,
               child: ListTile(
                 leading: const Icon(Icons.download),
-                title: const Text('حمّل الترجمة على الجهاز'),
+                title: const Text('حمّل ترجمة بدون نت (اختياري)'),
                 subtitle: const Text(
-                  'مرة واحدة فقط (حوالي 60 ميجا). بعدها الترجمة تعمل بدون إنترنت.',
+                  'الترجمة المجانية تحتاج نت. حمّل هذي (حوالي 60 ميجا، مرة واحدة) عشان التطبيق يترجم حتى لو انقطع النت.',
                 ),
                 trailing: _downloading
                     ? const CircularProgressIndicator()
@@ -289,16 +287,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ListenSession.isRunning ? 'يسمعك الآن (افتح)' : 'ابدأ الاستماع',
                 style: const TextStyle(fontSize: 22),
               ),
-              onPressed: level == null || !_canTranslate
+              onPressed: level == null
                   ? null
                   : () => _open(ListenScreen(level: level, autoStart: true)),
             ),
           ),
-          if (level == null || !_canTranslate)
+          if (level == null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'لازم تحدد مستواك، وتحمّل ترجمة الجوال أو تحط مفتاح Claude في الإعدادات.',
+                'لازم تحدد مستواك أولاً.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
@@ -392,12 +390,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'ترجمة أدق بالذكاء الاصطناعي (Claude)',
+                'اختياري ومدفوع: ترجمة Claude',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const Text(
-                'حط مفتاح API من console.anthropic.com. لو تركته فاضي، '
-                'نستخدم ترجمة الجوال بدون نت.',
+                'الترجمة الأساسية مجانية ولا تحتاج شي. لو حبيت ترجمة أذكى، '
+                'حط مفتاح API من console.anthropic.com (مدفوع)، وإلا اتركها فاضية.',
               ),
               TextField(
                 controller: keyController,
