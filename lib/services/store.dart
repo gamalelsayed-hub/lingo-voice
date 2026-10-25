@@ -43,6 +43,12 @@ class Store {
   int get summaryMinutes => _prefs.getInt('summaryEvery') ?? -1;
   set summaryMinutes(int value) => _prefs.setInt('summaryEvery', value);
 
+  /// Claude API key for better translations; empty means on-device only.
+  /// Kept in the app's private storage on this phone.
+  String get claudeApiKey => _prefs.getString('claudeApiKey') ?? '';
+  set claudeApiKey(String value) =>
+      _prefs.setString('claudeApiKey', value.trim());
+
   bool get instantMode => _prefs.getBool('instantMode') ?? false;
   set instantMode(bool value) => _prefs.setBool('instantMode', value);
 

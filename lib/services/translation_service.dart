@@ -1,5 +1,9 @@
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
+import '../data/levels.dart';
+import 'claude_translator.dart';
+import 'store.dart';
+
 /// Translates between Arabic and English on the phone, with Google ML Kit.
 /// The language models (about 30 MB each) are downloaded once.
 class TranslationService {
@@ -45,7 +49,29 @@ class TranslationService {
     }
   }
 
-  Future<String> toEnglish(String arabic) => _toEnglish.translateText(arabic);
+  /// Whether the last translation came from Claude, for the UI.
+  bool lastWasClaude = false;
+
+  /// Translates with Claude when an API key is set, falling back to the
+  /// on-device model when there is no key, no internet, or an API error.
+  Future<String> toEnglish(String arabic, CefrLevel level) async {
+    final key = Store.instance.claudeApiKey;
+    if (key.isNotEmpty) {
+      try {
+        final english = await ClaudeTranslator(key).toEnglish(arabic, level);
+        lastWasClaude = true;
+        lastClaudeError = null;
+        return english;
+      } catch (e) {
+        lastClaudeError = '$e';
+      }
+    }
+    lastWasClaude = false;
+    return _toEnglish.translateText(arabic);
+  }
+
+  /// Why the last Claude translation failed, if it did.
+  String? lastClaudeError;
 
   Future<String> toArabic(String english) => _toArabic.translateText(english);
 }

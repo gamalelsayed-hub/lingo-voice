@@ -111,6 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _store.level = chosen);
   }
 
+  bool get _canTranslate => _modelsReady || _store.claudeApiKey.isNotEmpty;
+
   Future<void> _checkModels() async {
     final ready = await TranslationService.instance.modelsReady();
     if (mounted) setState(() => _modelsReady = ready);
@@ -287,16 +289,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ListenSession.isRunning ? 'يسمعك الآن (افتح)' : 'ابدأ الاستماع',
                 style: const TextStyle(fontSize: 22),
               ),
-              onPressed: level == null || !_modelsReady
+              onPressed: level == null || !_canTranslate
                   ? null
                   : () => _open(ListenScreen(level: level, autoStart: true)),
             ),
           ),
-          if (level == null || !_modelsReady)
+          if (level == null || !_canTranslate)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'لازم تحدد مستواك وتحمّل الترجمة أولاً.',
+                'لازم تحدد مستواك، وتحمّل ترجمة الجوال أو تحط مفتاح Claude في الإعدادات.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
@@ -336,11 +338,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showSettings(BuildContext context) {
+    final keyController = TextEditingController(text: _store.claudeApiKey);
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheet) => Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -382,6 +391,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              Text(
+                'ترجمة أدق بالذكاء الاصطناعي (Claude)',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const Text(
+                'حط مفتاح API من console.anthropic.com. لو تركته فاضي، '
+                'نستخدم ترجمة الجوال بدون نت.',
+              ),
+              TextField(
+                controller: keyController,
+                obscureText: true,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(hintText: 'sk-ant-...'),
+                onChanged: (value) => _store.claudeApiKey = value,
+              ),
+              const SizedBox(height: 16),
               OutlinedButton.icon(
                 icon: const Icon(Icons.record_voice_over),
                 label: const Text('جرّب صوت التطبيق'),
@@ -391,6 +416,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() => setState(() {}));
   }
 }

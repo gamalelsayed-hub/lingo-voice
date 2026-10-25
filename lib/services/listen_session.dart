@@ -166,11 +166,16 @@ class ListenSession extends ChangeNotifier {
     partial = '';
     String english;
     try {
-      english = await _translator.toEnglish(arabic);
+      english = await _translator.toEnglish(arabic, level);
     } catch (e) {
       error = 'تعذرت الترجمة: $e';
       notifyListeners();
       return;
+    }
+    final claudeError = _translator.lastClaudeError;
+    if (_store.claudeApiKey.isNotEmpty && claudeError != null) {
+      notice =
+          'ترجمة Claude ما اشتغلت، فاستخدمنا ترجمة الجوال. السبب: $claudeError';
     }
     final sentence = SpokenSentence(arabic: arabic, english: english);
     history.add(sentence);
